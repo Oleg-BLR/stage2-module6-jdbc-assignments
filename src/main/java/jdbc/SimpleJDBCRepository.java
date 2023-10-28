@@ -9,73 +9,52 @@ import lombok.Setter;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-
-
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
 public class SimpleJDBCRepository {
+    private final CustomDataSource dataSource = CustomDataSource.getInstance();
+
+    private Connection connection = null;
+    private PreparedStatement ps = null;
+    private Statement st = null;
+
+    private static final String CREATE_USER_SQL = "insert into myusers(firstname, lastname, age) values (?, ?, ?);";
+    private static final String UPDATE_USER_SQL = "update myusers set firstname=?, lastname=?, age=? where id = ? ";
+    private static final String DELETE_USER = "delete from myusers where id = ?";
+    private static final String FIND_USER_BY_ID_SQL = "select * from myusers where id = ?";
+    private static final String FIND_USER_BY_NAME_SQL = "select * from myusers where firstname like CONCAT('%', ?, '%')";
+    private static final String FIND_ALL_USER_SQL = "select * from myusers";
 
 
-    private static final String CREATE_USER_SQL = "INSERT INTO myusers(firstname, lastname, age) VALUES(?, ?, ?)  ";
-    private static final String UPDATE_USER_SQL = "UPDATE myusers SET firstname=?, lastname=?, age=? WHERE id=?";
-    private static final String DELETE_USER = "DELETE FROM myusers WHERE id=?";
-    private static final String FIND_USER_BY_ID_SQL = "SELECT * FROM myusers WHERE id=?";
-    private static final String FIND_USER_BY_NAME_SQL = "SELECT * FROM myusers WHERE firstname=?";
-    private static final String FIND_ALL_USER_SQL = "SELECT * FROM myusers";
-
-    public static void main(String[] args) {
-        User user = new User();
-        user.setId(2L);
-        user.setFirstName("Test");
-        user.setLastName("Testov");
-        user.setAge(23);
-
-        SimpleJDBCRepository db = new SimpleJDBCRepository();
-        System.out.println(db.createUser(user));
-    }
     public Long createUser(User user) {
         Long id = null;
-        try(
-                Connection connection = CustomDataSource.getInstance().getConnection();
-                PreparedStatement ps = connection.prepareStatement(CREATE_USER_SQL, Statement.RETURN_GENERATED_KEYS)
-        ){
-//            ps.setObject(1, user.getId());
-            ps.setObject(1, user.getFirstName());
-            ps.setObject(2, user.getLastName());
-            ps.setObject(3, user.getAge());
-            ps.executeUpdate();
-
-            ResultSet resultSet = ps.getGeneratedKeys();
-            if (resultSet.next()){
-                id = resultSet.getLong(1);
+        try (var conn = dataSource.getConnection();
+             var statement = conn.prepareStatement(CREATE_USER_SQL, Statement.RETURN_GENERATED_KEYS)) {
+            statement.setObject(1, user.getFirstName());
+            statement.setObject(2, user.getLastName());
+            statement.setObject(3, user.getAge());
+            statement.execute();
+            ResultSet generatedKeys = statement.getGeneratedKeys();
+            if (generatedKeys.next()) {
+                id = generatedKeys.getLong(1);
             }
-        }
-        catch (SQLException e){
-            System.out.println(e);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
         return id;
     }
 
     public User findUserById(Long userId) {
-        User user = new User();
-
-        try (
-                Connection connection = CustomDataSource.getInstance().getConnection();
-                PreparedStatement ps = connection.prepareStatement(FIND_USER_BY_ID_SQL);
-        ){
-            ps.setObject(1, userId);
-
-            ResultSet resultSet = ps.executeQuery();
-            if (!resultSet.next()) {
-                throw new RuntimeException();
+        User user = null;
+        try (var conn = dataSource.getConnection();
+             var statement = conn.prepareStatement(FIND_USER_BY_ID_SQL)) {
+            statement.setLong(1, userId);
+            ResultSet resultSet = statement.executeQuery();
+            if (resultSet.next()) {
+                user = map(resultSet);
             }
-            user.setId(resultSet.getLong("id"));
-            user.setFirstName(resultSet.getString("firstname"));
-            user.setLastName(resultSet.getString("lastname"));
-            user.setAge(resultSet.getInt("age"));
-
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -83,23 +62,14 @@ public class SimpleJDBCRepository {
     }
 
     public User findUserByName(String userName) {
-        User user = new User();
-
-        try(
-                Connection connection = CustomDataSource.getInstance().getConnection();
-                PreparedStatement ps = connection.prepareStatement(FIND_USER_BY_NAME_SQL)
-        ){
-            ps.setObject(1, userName);
-            ResultSet resultSet = ps.executeQuery();
-            if (!resultSet.next()) {
-                throw new SQLException("no user with this name");
+        User user = null;
+        try (var conn = dataSource.getConnection();
+             var statement = conn.prepareStatement(FIND_USER_BY_NAME_SQL)) {
+            statement.setString(1, userName);
+            ResultSet resultSet = statement.executeQuery();
+            if (resultSet.next()) {
+                user = map(resultSet);
             }
-
-            user.setId(resultSet.getLong("id"));
-            user.setFirstName(resultSet.getString("firstname"));
-            user.setLastName(resultSet.getString("lastname"));
-            user.setAge(resultSet.getInt("age"));
-
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -108,19 +78,11 @@ public class SimpleJDBCRepository {
 
     public List<User> findAllUser() {
         List<User> users = new ArrayList<>();
-
-        try(
-                Connection connection = CustomDataSource.getInstance().getConnection();
-                Statement st = connection.createStatement()
-        ) {
-            ResultSet resultSet = st.executeQuery(FIND_ALL_USER_SQL);
-            while (resultSet.next()){
-                User user = new User();
-                user.setId(resultSet.getLong("id"));
-                user.setFirstName(resultSet.getString("firstname"));
-                user.setLastName(resultSet.getString("lastname"));
-                user.setAge(resultSet.getInt("age"));
-                users.add(user);
+        try (var conn = dataSource.getConnection();
+             var statement = conn.prepareStatement(FIND_ALL_USER_SQL)) {
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                users.add(map(resultSet));
             }
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -129,17 +91,14 @@ public class SimpleJDBCRepository {
     }
 
     public User updateUser(User user) {
-        try(
-                Connection connection = CustomDataSource.getInstance().getConnection();
-                PreparedStatement ps = connection.prepareStatement(UPDATE_USER_SQL)
-        ) {
-            ps.setObject(1, user.getFirstName());
-            ps.setString(2, user.getLastName());
-            ps.setInt(3, user.getAge());
-            ps.setLong(4, user.getId());
-
-            if (ps.executeUpdate() == 0) {
-                throw new SQLException("no user");
+        try (var conn = dataSource.getConnection();
+             var statement = conn.prepareStatement(UPDATE_USER_SQL)) {
+            statement.setString(1, user.getFirstName());
+            statement.setString(2, user.getLastName());
+            statement.setInt(3, user.getAge());
+            statement.setLong(4, user.getId());
+            if (statement.executeUpdate() != 0) {
+                return findUserById(user.getId());
             }
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -148,16 +107,21 @@ public class SimpleJDBCRepository {
     }
 
     public void deleteUser(Long userId) {
-        try (
-                Connection connection = CustomDataSource.getInstance().getConnection();
-                PreparedStatement ps = connection.prepareStatement(DELETE_USER)
-        ) {
-            ps.setLong(1, userId);
-            if (ps.executeUpdate() == 0) {
-                throw new SQLException("no user with this id");
-            }
+        try (var conn = dataSource.getConnection();
+             var statement = conn.prepareStatement(DELETE_USER)) {
+            statement.setLong(1, userId);
+            statement.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private User map(ResultSet rs) throws SQLException {
+        return User.builder()
+                .id(rs.getLong("id"))
+                .firstName(rs.getString("firstname"))
+                .lastName(rs.getString("lastname"))
+                .age(rs.getInt("age"))
+                .build();
     }
 }

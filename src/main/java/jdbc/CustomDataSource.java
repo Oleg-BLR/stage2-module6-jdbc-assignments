@@ -17,8 +17,8 @@ import java.util.logging.Logger;
 @Setter
 public class CustomDataSource implements DataSource {
     private static volatile CustomDataSource instance;
-    private static final Object OBJECT = new Object();
     private static final SQLException SQL_EXCEPTION = new SQLException();
+    private static final Object MONITOR = new Object();
     private final String driver;
     private final String url;
     private final String name;
@@ -29,15 +29,14 @@ public class CustomDataSource implements DataSource {
         this.url = url;
         this.password = password;
         this.name = name;
+        instance = this;
     }
 
     public static CustomDataSource getInstance() {
-        if (instance == null){
-
-            synchronized (OBJECT){
-
-                if (instance == null){
-                    try{
+        if (instance == null) {
+            synchronized (MONITOR) {
+                if (instance == null) {
+                    try {
                         Properties properties = new Properties();
                         properties.load(CustomDataSource.class.getClassLoader().getResourceAsStream("app.properties"));
                         instance = new CustomDataSource(
@@ -50,20 +49,18 @@ public class CustomDataSource implements DataSource {
                         throw new RuntimeException(e);
                     }
                 }
-
             }
-
         }
         return instance;
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
+    public Connection getConnection() {
         return new CustomConnector().getConnection(url, name, password);
     }
 
     @Override
-    public Connection getConnection(String username, String password) throws SQLException {
+    public Connection getConnection(String username, String password) {
         return new CustomConnector().getConnection(url, username, password);
     }
 
