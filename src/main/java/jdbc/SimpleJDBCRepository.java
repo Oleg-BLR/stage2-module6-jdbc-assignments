@@ -9,6 +9,11 @@ import lombok.Setter;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+
+/**
+ * The SimpleJDBCRepository class provides methods to interact with a database using JDBC.
+ * It uses a CustomDataSource object to establish a connection to the database.
+ */
 @Getter
 @Setter
 @AllArgsConstructor
@@ -27,7 +32,12 @@ public class SimpleJDBCRepository {
     private static final String FIND_USER_BY_NAME_SQL = "select * from myusers where firstname like CONCAT('%', ?, '%')";
     private static final String FIND_ALL_USER_SQL = "select * from myusers";
 
-
+    /**
+     * Inserts a new user into the database.
+     * @param user the user to insert
+     * @return the ID of the newly inserted user
+     * @throws RuntimeException if a SQLException occurs while attempting to insert the user
+     */
     public Long createUser(User user) {
         Long id = null;
         try (var conn = dataSource.getConnection();
@@ -46,6 +56,12 @@ public class SimpleJDBCRepository {
         return id;
     }
 
+    /**
+     * Finds a user in the database by their ID.
+     * @param userId the ID of the user to find
+     * @return the User object representing the found user, or null if no user was found
+     * @throws RuntimeException if a SQLException occurs while attempting to find the user
+     */
     public User findUserById(Long userId) {
         User user = null;
         try (var conn = dataSource.getConnection();
@@ -61,6 +77,12 @@ public class SimpleJDBCRepository {
         return user;
     }
 
+    /**
+     * Finds a user in the database by their name.
+     * @param userName the name of the user to find
+     * @return the User object representing the found user, or null if no user was found
+     * @throws RuntimeException if a SQLException occurs while attempting to find the user
+     */
     public User findUserByName(String userName) {
         User user = null;
         try (var conn = dataSource.getConnection();
@@ -76,6 +98,11 @@ public class SimpleJDBCRepository {
         return user;
     }
 
+    /**
+     * Finds all users in the database.
+     * @return a List of User objects representing all users in the database
+     * @throws RuntimeException if a SQLException occurs while attempting to find the users
+     */
     public List<User> findAllUser() {
         List<User> users = new ArrayList<>();
         try (var conn = dataSource.getConnection();
@@ -90,6 +117,12 @@ public class SimpleJDBCRepository {
         return users;
     }
 
+    /**
+     * Updates a user in the database.
+     * @param user the user to update
+     * @return the User object representing the updated user, or null if the update failed
+     * @throws RuntimeException if a SQLException occurs while attempting to update the user
+     */
     public User updateUser(User user) {
         try (var conn = dataSource.getConnection();
              var statement = conn.prepareStatement(UPDATE_USER_SQL)) {
@@ -106,6 +139,11 @@ public class SimpleJDBCRepository {
         return null;
     }
 
+    /**
+     * Deletes a user from the database.
+     * @param userId the ID of the user to delete
+     * @throws RuntimeException if a SQLException occurs while attempting to delete the user
+     */
     public void deleteUser(Long userId) {
         try (var conn = dataSource.getConnection();
              var statement = conn.prepareStatement(DELETE_USER)) {
@@ -116,12 +154,18 @@ public class SimpleJDBCRepository {
         }
     }
 
+    /**
+     * Maps a ResultSet object to a User object.
+     * @param rs the ResultSet object to map
+     * @return the User object representing the mapped ResultSet
+     * @throws SQLException if a SQLException occurs while attempting to map the ResultSet
+     */
     private User map(ResultSet rs) throws SQLException {
         return User.builder()
-                .id(rs.getLong("id"))
-                .firstName(rs.getString("firstname"))
-                .lastName(rs.getString("lastname"))
-                .age(rs.getInt("age"))
-                .build();
+            .id(rs.getLong("id"))
+            .firstName(rs.getString("firstname"))
+            .lastName(rs.getString("lastname"))
+            .age(rs.getInt("age"))
+            .build();
     }
 }
